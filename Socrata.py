@@ -59,7 +59,6 @@ class Socrata:
             response_parsed = json.loads(content)
             if response_parsed.has_key('error') and response_parsed['error'] == True:
                 print "Error: %s" % response_parsed['message']
-                return False
             return response_parsed
         return None
 
