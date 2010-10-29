@@ -16,37 +16,55 @@ limitations under the License.
 
 import json
 import re
+from poster.encode import multipart_encode
+from poster.streaminghttp import register_openers
 from httplib2 import Http
+from urllib import urlencode
+from urllib2 import Request, urlopen
 
 class Socrata:
     """Base class for all Socrata API objects"""
-    
+
     def __init__(self, configuration):
         """
-        Initializes a new Socrata API object with configuration 
+        Initializes a new Socrata API object with configuration
         options specified in standard ConfigParser format
         """
-        
+
         self.config = configuration
+        self.username, password, host, api_host = (self.config.get('credentials', 'user'),
+            self.config.get('credentials', 'password'),
+            self.config.get('server', 'host'),
+            self.config.get('server', 'api_host'))
+
         self.api = Http()
-        self.api.add_credentials(
-            self.config.get('credentials', 'user'),
-            self.config.get('credentials', 'password'))
-        self.url = self.config.get('server', 'host')
+        self.url = host
         self.id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
+
+        response, content = self.api.request('%s/authenticate' % api_host, 'POST',
+            headers={'Content-type': 'application/x-www-form-urlencoded'},
+            body=urlencode({'username': self.username, 'password': password}))
+        cookies = re.search('(_blist_session_id=[^;]+)', response['set-cookie'])
+        self.cookie = cookies.group(0)
+        # For multipart upload/streaming
+        register_openers()
 
     def _request(self, service, type, data = {}):
         """Generic HTTP request, encoding data as JSON and decoding the response"""
         response, content = self.api.request(
             self.url + service, type,
-            headers = { 'Content-type:': 'application/json' },
+            headers = { 'Content-type:': 'application/json', 'Cookie': self.cookie},
             body = json.dumps(data) )
         if content != None and len(content) > 0:
-            return json.loads(content)
+            response_parsed = json.loads(content)
+            if response_parsed.has_key('error') and response_parsed['error'] == True:
+                print "Error: %s" % response_parsed['message']
+                return False
+            return response_parsed
         return None
 
     def _batch(self, data):
-        payload = json.dumps({'requests': data})
+        payload = {'requests': data}
         return self._request('/batches', 'POST', payload)
 
 
@@ -92,7 +110,7 @@ class Dataset(Socrata):
         self.error = False
         data = { 'name': name, 'description': description }
         if public:
-            data['flags'] = ['dataPublic']
+            data['flags'] = ['dataPublicRead']
         if tags.count > 0:
             data['tags'] = tags
 
@@ -101,7 +119,7 @@ class Dataset(Socrata):
             self.error = response['message']
             if response['code'] == 'authentication_required':
                 raise RuntimeError('You must specify proper authentication credentials')
-            elif response['code'] == 'invalid_request':    
+            elif response['code'] == 'invalid_request':
                 raise DuplicateDatasetError(name)
             else:
                 raise RuntimeError('API Error ' + response['message'])
@@ -115,6 +133,45 @@ class Dataset(Socrata):
             'DELETE', None)
         return response == None
 
+    # Call the search service with optional params
+    def find_datasets(self, params={}):
+        self.error = False
+        sets = self._request("/api/search/views.json?%s" % urlencode(params), "GET")
+        return sets
+
+    def metadata(self):
+        self.error = False
+        self.response = self._request("/views/%s.json" % self.id, 'GET')
+        return self.response['metadata']
+
+    def attachments(self):
+        metadata = self.metadata()
+        if metadata == None or (not metadata.has_key('attachments')):
+            return []
+        return metadata['attachments']
+
+    def attach_file(self, filename):
+        metadata = self.metadata()
+        if not metadata.has_key('attachments'):
+            metadata['attachments'] = []
+
+        response = self.multipart_post('/assets', filename)
+        if not response.has_key('id'):
+            print "Error uploading file to assets service: no ID returned: %s" % response
+            return
+        attachment = {'blobId': response['id'],
+            'name': response['nameForOutput'],
+            'filename': response['nameForOutput']}
+        metadata['attachments'].append(attachment)
+        self._request("/views/%s.json" % self.id, 'PUT', {'metadata':metadata})
+
+    def multipart_post(self, url, filename, field='file'):
+        datagen, headers = multipart_encode({field: open(filename, "rb")})
+        headers['Cookie'] = self.cookie
+        request = Request("%s%s" % (self.url, url), datagen, headers)
+        response = urlopen(request).read()
+        return json.loads(response)
+
     # Is the string 'id' a valid four-four ID?
     def is_id(self, id):
         return self.id_pattern.match(id) != None
@@ -124,6 +181,12 @@ class Dataset(Socrata):
         if self.error:
             return self.error
         return False
+
+    def use_existing(self, id):
+        if self.is_id(id):
+            self.id = id
+        else:
+            return False
 
     def short_url(self):
         return self.config.get('server', 'public_host') + "/d/" + str(self.id)

@@ -4,31 +4,16 @@ import Socrata
 import ConfigParser
 import sys
 import urllib
+import time
+import feedparser
 from xml.dom import minidom
 
 REDDIT_RSS = "http://www.reddit.com/.rss"
 
-def get_text(nodelist):
-    """Retrieves a string from a text node, or series of text nodes"""
-    rc = ""
-    for node in nodelist:
-        if node.nodeType == node.TEXT_NODE:
-            rc = rc + node.data
-    return rc
 
-def get_element_text(tagName, item):
-    return get_text(item.getElementsByTagName(tagName)[0].childNodes)
 
-def get_rss_dom(url):
-    """Gets a minidom object from Reddit's servers"""
-    return minidom.parse(urllib.urlopen(url))
-
-def create_dataset_with_columns(title = 'RSS Feed Dataset', description = ''):
+def create_dataset_with_columns(dataset, title = 'RSS Feed Dataset', description = ''):
     """Creates a new Socrata dataset with columns for an RSS feed"""
-
-    cfg = ConfigParser.ConfigParser()
-    cfg.read('socrata.cfg')
-    dataset = Socrata.Dataset(cfg)
     try:
         dataset.create(title, description)
     except Socrata.DuplicateDatasetError:
@@ -39,7 +24,7 @@ def create_dataset_with_columns(title = 'RSS Feed Dataset', description = ''):
     dataset.add_column('URL', '', 'url', False, False, 300)
     dataset.add_column('Date', '', 'date')
     
-    return dataset
+    return
 
 if __name__ == "__main__":
     # Default to Reddit for an example
@@ -49,21 +34,34 @@ if __name__ == "__main__":
         feed_url = sys.argv[1]
     print "Downloading RSS feed from " + str(feed_url)
     
-    r_dom = get_rss_dom(feed_url)
+    rss = feedparser.parse(feed_url)
     
-    print "Creating dataset in Socrata"
-    dataset = create_dataset_with_columns()
+    cfg = ConfigParser.ConfigParser()
+    cfg.read('socrata.cfg')
+    dataset = Socrata.Dataset(cfg)
+
+    print "Searching for existing dataset"
+    existing = dataset.find_datasets({'q':'RSS Feed Dataset',
+        'for_user': dataset.username})[0]
+    if existing['count'] > 0:
+        print "Dataset exists, using it"
+        dataset.use_existing(existing['results'][0]['id'])
+    else:
+        print "Creating dataset in Socrata"
+        create_dataset_with_columns(dataset)
 
     if  dataset:
         batch_requests = []
         # Extract relevant information
-        for item in r_dom.getElementsByTagName("item"):
+        for item in rss.entries:
             data = {}
-            data['Title'] = get_element_text('title', item)
-            data['URL']   = get_element_text('link', item)
-            data['Date']  = get_element_text('dc:date', item)
-            dataset.add_row(data)
+            data['Title'] = item.title
+            data['URL']   = item.link
+            data['Date']  = time.strftime("%m/%d/%Y %H:%M:%S", item.date_parsed)
+            batch_requests.append(dataset.add_row_delayed(data))
 
+
+        dataset._batch(batch_requests)
         print "You can now view the dataset:"
         print dataset.short_url()
     else:
