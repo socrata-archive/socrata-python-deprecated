@@ -1,5 +1,5 @@
 """
-Copyright (c) 2010 Socrata.
+Copyright (c) 2011 Socrata.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ from httplib2 import Http
 from urllib import urlencode
 from urllib2 import Request, urlopen
 
-class Socrata:
+class SocrataBase:
     """Base class for all Socrata API objects"""
 
     def __init__(self, configuration):
@@ -37,12 +37,14 @@ class Socrata:
             self.config.get('server', 'host'),
             self.config.get('server', 'api_host'))
 
-        self.api = Http()
-        self.url = host
+        self.app_token  = self.config.get('credentials', 'app_token')
+        self.api        = Http()
+        self.url        = host
         self.id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
 
         response, content = self.api.request('%s/authenticate' % api_host, 'POST',
-            headers={'Content-type': 'application/x-www-form-urlencoded'},
+            headers={'Content-type': 'application/x-www-form-urlencoded',
+                     'X-App-Token': self.app_token},
             body=urlencode({'username': self.username, 'password': password}))
         cookies = re.search('(_blist_session_id=[^;]+)', response['set-cookie'])
         self.cookie = cookies.group(0)
@@ -53,11 +55,14 @@ class Socrata:
         """Generic HTTP request, encoding data as JSON and decoding the response"""
         response, content = self.api.request(
             self.url + service, type,
-            headers = { 'Content-type:': 'application/json', 'Cookie': self.cookie},
+            headers = { 'Content-type:': 'application/json',
+              'X-App-Token': self.app_token,
+              'Cookie': self.cookie },
             body = json.dumps(data) )
         if content != None and len(content) > 0:
             response_parsed = json.loads(content)
-            if response_parsed.has_key('error') and response_parsed['error'] == True:
+            if hasattr(response_parsed, 'has_key') and \
+                response_parsed.has_key('error') and response_parsed['error'] == True:
                 print "Error: %s" % response_parsed['message']
             return response_parsed
         return None
@@ -67,7 +72,7 @@ class Socrata:
         return self._request('/batches', 'POST', payload)
 
 
-class Dataset(Socrata):
+class Dataset(SocrataBase):
     """Represents a Socrata Dataset, can be used for CRUD and more"""
 
     # Creates a new column, POSTing the request immediately
@@ -165,8 +170,10 @@ class Dataset(Socrata):
         self._request("/views/%s.json" % self.id, 'PUT', {'metadata':metadata})
 
     def multipart_post(self, url, filename, field='file'):
-        datagen, headers = multipart_encode({field: open(filename, "rb")})
-        headers['Cookie'] = self.cookie
+        datagen, headers       = multipart_encode({field: open(filename, "rb")})
+        headers['Cookie']      = self.cookie
+        headers['X-App-Token'] = self.app_token
+
         request = Request("%s%s" % (self.url, url), datagen, headers)
         response = urlopen(request).read()
         return json.loads(response)

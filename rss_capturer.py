@@ -54,7 +54,7 @@ if __name__ == "__main__":
         batch_requests = []
         # Extract relevant information
         for item in rss.entries:
-            data = {}
+            data          = {}
             data['Title'] = item.title
             data['URL']   = item.link
             data['Date']  = time.strftime("%m/%d/%Y %H:%M:%S", item.date_parsed)
