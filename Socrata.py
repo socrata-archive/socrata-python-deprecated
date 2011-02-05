@@ -47,6 +47,7 @@ class SocrataBase:
                      'X-App-Token': self.app_token},
             body=urlencode({'username': self.username, 'password': password}))
         cookies = re.search('(_blist_session_id=[^;]+)', response['set-cookie'])
+        print cookies
         self.cookie = cookies.group(0)
         # For multipart upload/streaming
         register_openers()
@@ -117,8 +118,9 @@ class Dataset(SocrataBase):
             data['flags'] = ['dataPublicRead']
         if tags.count > 0:
             data['tags'] = tags
-
+        
         response = self._request('/views.json', 'POST', data)
+        print response
         if response.has_key('error'):
             self.error = response['message']
             if response['code'] == 'authentication_required':
@@ -195,7 +197,7 @@ class Dataset(SocrataBase):
             return False
 
     def short_url(self):
-        return self.config.get('server', 'public_host') + "/d/" + str(self.id)
+        return self.config.get('server', 'host') + "/d/" + str(self.id)
 
 
 class DuplicateDatasetError(Exception):
