@@ -119,7 +119,6 @@ class Dataset(SocrataBase):
             data['tags'] = tags
         
         response = self._request('/views.json', 'POST', data)
-        print response
         if response.has_key('error'):
             self.error = response['message']
             if response['code'] == 'authentication_required':
