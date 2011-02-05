@@ -47,7 +47,6 @@ class SocrataBase:
                      'X-App-Token': self.app_token},
             body=urlencode({'username': self.username, 'password': password}))
         cookies = re.search('(_blist_session_id=[^;]+)', response['set-cookie'])
-        print cookies
         self.cookie = cookies.group(0)
         # For multipart upload/streaming
         register_openers()
