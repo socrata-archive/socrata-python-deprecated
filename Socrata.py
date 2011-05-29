@@ -182,12 +182,6 @@ class Dataset(SocrataBase):
     def is_id(self, id):
         return self.id_pattern.match(id) != None
 
-    # Gets the most recent API error, if any
-    def get_error(self):
-        if self.error:
-            return self.error
-        return False
-
     def use_existing(self, id):
         if self.is_id(id):
             self.id = id
