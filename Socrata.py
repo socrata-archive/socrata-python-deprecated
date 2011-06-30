@@ -32,22 +32,16 @@ class SocrataBase:
         """
 
         self.config = configuration
-        self.username, password, host, api_host = (self.config.get('credentials', 'user'),
+        self.username, password, host = (self.config.get('credentials', 'user'),
             self.config.get('credentials', 'password'),
-            self.config.get('server', 'host'),
-            self.config.get('server', 'api_host'))
+            self.config.get('server', 'host'))
 
         self.app_token  = self.config.get('credentials', 'app_token')
         self.api        = Http()
         self.url        = host
         self.id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
+        self.api.add_credentials(self.username, password)
 
-        response, content = self.api.request('%s/authenticate' % api_host, 'POST',
-            headers={'Content-type': 'application/x-www-form-urlencoded',
-                     'X-App-Token': self.app_token},
-            body=urlencode({'username': self.username, 'password': password}))
-        cookies = re.search('(_blist_session_id=[^;]+)', response['set-cookie'])
-        self.cookie = cookies.group(0)
         # For multipart upload/streaming
         register_openers()
 
@@ -56,8 +50,7 @@ class SocrataBase:
         response, content = self.api.request(
             self.url + service, type,
             headers = { 'Content-type:': 'application/json',
-              'X-App-Token': self.app_token,
-              'Cookie': self.cookie },
+              'X-App-Token': self.app_token },
             body = json.dumps(data) )
         if content != None and len(content) > 0:
             response_parsed = json.loads(content)
@@ -171,7 +164,6 @@ class Dataset(SocrataBase):
 
     def multipart_post(self, url, filename, field='file'):
         datagen, headers       = multipart_encode({field: open(filename, "rb")})
-        headers['Cookie']      = self.cookie
         headers['X-App-Token'] = self.app_token
 
         request = Request("%s%s" % (self.url, url), datagen, headers)
