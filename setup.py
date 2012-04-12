@@ -8,7 +8,7 @@ setup (
   version = '0.2',
   packages = find_packages(),
 
-  install_requires=['feedparser','httplib2','poster'],
+  install_requires=['feedparser','requests','poster'],
 
   author = 'Aiden Scandella',
   author_email = 'aiden.scandella@socrata.com',

@@ -15,12 +15,13 @@ limitations under the License.
 """
 
 import json
-import re
-from poster.encode import multipart_encode
-from poster.streaminghttp import register_openers
-from httplib2 import Http
+import re, logging
+import requests
 from urllib import urlencode
-from urllib2 import Request, urlopen
+
+
+DEBUG=False
+
 
 class SocrataBase:
     """Base class for all Socrata API objects"""
@@ -32,26 +33,25 @@ class SocrataBase:
         """
 
         self.config = configuration
-        self.username, password, host = (self.config.get('credentials', 'user'),
+        self.username, self.password, self.host = (self.config.get('credentials', 'user'),
             self.config.get('credentials', 'password'),
             self.config.get('server', 'host'))
 
         self.app_token  = self.config.get('credentials', 'app_token')
-        self.api        = Http()
-        self.url        = host
+        self.url        = self.host
         self.id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
-        self.api.add_credentials(self.username, password)
 
-        # For multipart upload/streaming
-        register_openers()
-
-    def _request(self, service, type, data = {}):
+    def _request(self, service, type='GET', data = {}):
         """Generic HTTP request, encoding data as JSON and decoding the response"""
-        response, content = self.api.request(
-            self.url + service, type,
-            headers = { 'Content-type:': 'application/json',
+        client= getattr(requests, type.lower())
+        uri=self.url + service
+        logging.warning(uri)
+        response= client(uri + service,
+        headers = { 'Content-type:': 'application/json',
               'X-App-Token': self.app_token },
-            body = json.dumps(data) )
+            data = json.dumps(data), auth=(self.username, self.password ))
+            
+        content=response.text
         if content != None and len(content) > 0:
             response_parsed = json.loads(content)
             if hasattr(response_parsed, 'has_key') and \
@@ -167,8 +167,8 @@ class Dataset(SocrataBase):
         headers['X-App-Token'] = self.app_token
 
         request = Request("%s%s" % (self.url, url), datagen, headers)
-        response = urlopen(request).read()
-        return json.loads(response)
+        response = request.get(request).read()
+        return json.loads(response.text)
 
     # Is the string 'id' a valid four-four ID?
     def is_id(self, id):

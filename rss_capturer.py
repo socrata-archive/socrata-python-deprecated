@@ -8,8 +8,9 @@ import time
 import feedparser
 from xml.dom import minidom
 
-REDDIT_RSS = "http://www.reddit.com/.rss"
+Socrata.DEBUG=True
 
+REDDIT_RSS = "http://www.reddit.com/.rss"
 
 
 def create_dataset_with_columns(dataset, title = 'RSS Feed Dataset', description = ''):
@@ -41,8 +42,10 @@ if __name__ == "__main__":
     dataset = Socrata.Dataset(cfg)
 
     print "Searching for existing dataset"
+    #import pdb;pdb.set_trace()
     existing = dataset.find_datasets({'q':'RSS Feed Dataset',
-        'for_user': dataset.username})[0]
+        'for_user': dataset.username})
+    
     if existing['count'] > 0:
         print "Dataset exists, using it"
         dataset.use_existing(existing['results'][0]['id'])
