@@ -41,15 +41,26 @@ class SocrataBase:
         self.url        = self.host
         self.id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
 
-    def _request(self, service, type='GET', data = {}):
+    def _request(self, service, type='GET', data = {}, files=dict()):
         """Generic HTTP request, encoding data as JSON and decoding the response"""
         client= getattr(requests, type.lower())
         uri=self.url + service
-        logging.warning(uri)
-        response= client(uri + service,
-        headers = { 'Content-type:': 'application/json',
-              'X-App-Token': self.app_token },
-            data = json.dumps(data), auth=(self.username, self.password ))
+        if DEBUG: logging.warning("%s to %s: %s %s" %(type, uri, str(data), str(files)))
+        
+        headers={ 'Content-type:': 'application/json',
+              'X-App-Token': self.app_token }
+        
+        if data:
+            data_json=json.dumps(data)
+        else:
+            data=None
+            
+        response= client(uri,
+            headers = headers,
+            data = data, 
+            auth=(self.username, self.password ),
+            files=files
+        )
             
         content=response.text
         if content != None and len(content) > 0:
@@ -58,6 +69,8 @@ class SocrataBase:
                 response_parsed.has_key('error') and response_parsed['error'] == True:
                 print "Error: %s" % response_parsed['message']
             return response_parsed
+        
+        
         return None
 
     def _batch(self, data):
@@ -137,9 +150,8 @@ class Dataset(SocrataBase):
         return sets
 
     def metadata(self):
-        self.error = False
-        self.response = self._request("/views/%s.json" % self.id, 'GET')
-        return self.response['metadata']
+        self.error = False 
+        return (self._request("/views/%s.json" % self.id, 'GET'))
 
     def attachments(self):
         metadata = self.metadata()
@@ -163,12 +175,10 @@ class Dataset(SocrataBase):
         self._request("/views/%s.json" % self.id, 'PUT', {'metadata':metadata})
 
     def multipart_post(self, url, filename, field='file'):
-        datagen, headers       = multipart_encode({field: open(filename, "rb")})
-        headers['X-App-Token'] = self.app_token
+        file_to_upload=open(filename, "rb")
+        response= self._request(url, type='POST', files={filename:file_to_upload })
+        return response
 
-        request = Request("%s%s" % (self.url, url), datagen, headers)
-        response = request.get(request).read()
-        return json.loads(response.text)
 
     # Is the string 'id' a valid four-four ID?
     def is_id(self, id):

@@ -42,7 +42,6 @@ if __name__ == "__main__":
     dataset = Socrata.Dataset(cfg)
 
     print "Searching for existing dataset"
-    #import pdb;pdb.set_trace()
     existing = dataset.find_datasets({'q':'RSS Feed Dataset',
         'for_user': dataset.username})
     
