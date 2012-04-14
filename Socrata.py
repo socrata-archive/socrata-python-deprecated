@@ -18,47 +18,44 @@ import json
 import re, logging
 import requests
 from urllib import urlencode
+from urlparse import urljoin
 
-
-DEBUG=False
+id_pattern= re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
 
 
 class SocrataBase:
     """Base class for all Socrata API objects"""
 
-    def __init__(self, configuration):
+    def __init__(self, host, username, password, app_token):
         """
         Initializes a new Socrata API object with configuration
         options specified in standard ConfigParser format
         """
 
-        self.config = configuration
-        self.username, self.password, self.host = (self.config.get('credentials', 'user'),
-            self.config.get('credentials', 'password'),
-            self.config.get('server', 'host'))
-
-        self.app_token  = self.config.get('credentials', 'app_token')
-        self.url        = self.host
-        self.id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
+        self.username = username
+        self.password = password
+        self.host = host
+        self.app_token=app_token
 
     def _request(self, service, type='GET', data = {}, files=dict()):
         """Generic HTTP request, encoding data as JSON and decoding the response"""
         client= getattr(requests, type.lower())
-        uri=self.url + service
-        if DEBUG: logging.warning("%s to %s: %s %s" %(type, uri, str(data), str(files)))
-        
-        headers={ 'Content-type:': 'application/json',
+        uri=urljoin(self.host, service)
+        headers={ 'Content-type': 'application/json',
               'X-App-Token': self.app_token }
+        
+        if len(files) > 0:
+            del headers['Content-type']
         
         if data:
             data_json=json.dumps(data)
         else:
-            data=None
-            
+            data_json=None
+
         response= client(uri,
-            headers = headers,
-            data = data, 
+            headers = headers, 
             auth=(self.username, self.password ),
+            data=data_json,
             files=files
         )
             
@@ -182,7 +179,7 @@ class Dataset(SocrataBase):
 
     # Is the string 'id' a valid four-four ID?
     def is_id(self, id):
-        return self.id_pattern.match(id) != None
+        return id_pattern.match(id) != None
 
     def use_existing(self, id):
         if self.is_id(id):
@@ -191,7 +188,7 @@ class Dataset(SocrataBase):
             return False
 
     def short_url(self):
-        return self.config.get('server', 'host') + "/d/" + str(self.id)
+        return urljoin(self.host, "/d/" + str(self.id))
 
 
 class DuplicateDatasetError(Exception):

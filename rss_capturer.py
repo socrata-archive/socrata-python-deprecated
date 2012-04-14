@@ -39,7 +39,13 @@ if __name__ == "__main__":
     
     cfg = ConfigParser.ConfigParser()
     cfg.read('socrata.cfg')
-    dataset = Socrata.Dataset(cfg)
+    
+    host=cfg.get('server', 'host')
+    username=cfg.get('credentials', 'user')
+    password= cfg.get('credentials', 'password')
+    app_token= cfg.get('credentials', 'app_token')
+    
+    dataset = Socrata.Dataset( host, username, password, app_token)
 
     print "Searching for existing dataset"
     existing = dataset.find_datasets({'q':'RSS Feed Dataset',
