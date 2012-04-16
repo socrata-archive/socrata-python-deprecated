@@ -5,5 +5,3 @@ app_token: xxxxxxxxxxxxxxxxxxxxx (application token created in your account prof
 
 [server]
 host: https://opendata.socrata.com
-api_host: https://opendata.socrata.com/api
-

@@ -24,7 +24,7 @@ def create_dataset_with_columns(dataset, title = 'RSS Feed Dataset', description
     dataset.add_column('Title', '', 'text', False, False, 300)
     dataset.add_column('URL', '', 'url', False, False, 300)
     dataset.add_column('Date', '', 'date')
-    
+
     return
 
 if __name__ == "__main__":
@@ -36,14 +36,13 @@ if __name__ == "__main__":
     print "Downloading RSS feed from " + str(feed_url)
     
     rss = feedparser.parse(feed_url)
-    
     cfg = ConfigParser.ConfigParser()
     cfg.read('socrata.cfg')
-    
-    host=cfg.get('server', 'host')
-    username=cfg.get('credentials', 'user')
-    password= cfg.get('credentials', 'password')
-    app_token= cfg.get('credentials', 'app_token')
+
+    host      = cfg.get('server', 'host')
+    username  = cfg.get('credentials', 'user')
+    password  = cfg.get('credentials', 'password')
+    app_token = cfg.get('credentials', 'app_token')
     
     dataset = Socrata.Dataset( host, username, password, app_token)
 
@@ -66,9 +65,8 @@ if __name__ == "__main__":
             data['Title'] = item.title
             data['URL']   = item.link
             if hasattr(item,'date_parsed'):
-                data['Date']  = time.strftime("%m/%d/%Y %H:%M:%S", item.date_parsed)
+                data['Date'] = time.strftime("%m/%d/%Y %H:%M:%S", item.date_parsed)
             batch_requests.append(dataset.add_row_delayed(data))
-
 
         dataset._batch(batch_requests)
         print "You can now view the dataset:"

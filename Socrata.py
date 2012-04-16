@@ -20,7 +20,7 @@ import requests
 from urllib import urlencode
 from urlparse import urljoin
 
-id_pattern= re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
+id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
 
 
 class SocrataBase:
@@ -32,10 +32,10 @@ class SocrataBase:
         options specified in standard ConfigParser format
         """
 
-        self.username = username
-        self.password = password
-        self.host = host
-        self.app_token=app_token
+        self.username  = username
+        self.password  = password
+        self.host      = host
+        self.app_token = app_token
 
     def _request(self, service, type='GET', data = {}, files=dict()):
         """Generic HTTP request, encoding data as JSON and decoding the response"""
@@ -48,9 +48,9 @@ class SocrataBase:
             del headers['Content-type']
         
         if data:
-            data_json=json.dumps(data)
+            data_json = json.dumps(data)
         else:
-            data_json=None
+            data_json = None
 
         response= client(uri,
             headers = headers, 
@@ -172,8 +172,8 @@ class Dataset(SocrataBase):
         self._request("/views/%s.json" % self.id, 'PUT', {'metadata':metadata})
 
     def multipart_post(self, url, filename, field='file'):
-        file_to_upload=open(filename, "rb")
-        response= self._request(url, type='POST', files={filename:file_to_upload })
+        file_to_upload = open(filename, "rb")
+        response = self._request(url, type='POST', files={filename:file_to_upload })
         return response
 
 
