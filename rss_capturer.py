@@ -65,7 +65,8 @@ if __name__ == "__main__":
             data          = {}
             data['Title'] = item.title
             data['URL']   = item.link
-            data['Date']  = time.strftime("%m/%d/%Y %H:%M:%S", item.date_parsed)
+            if hasattr(item,'date_parsed'):
+                data['Date']  = time.strftime("%m/%d/%Y %H:%M:%S", item.date_parsed)
             batch_requests.append(dataset.add_row_delayed(data))
 
 
