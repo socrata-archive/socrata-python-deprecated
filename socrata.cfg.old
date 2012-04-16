@@ -1,9 +1,0 @@
-[credentials]
-user: xxxx-xxxx (account 4x4 found in user profile)
-password: yourPassword
-app_token: xxxxxxxxxxxxxxxxxxxxx (application token created in your account profile)
-
-[server]
-host: https://opendata.socrata.com
-api_host: https://opendata.socrata.com/api
-
