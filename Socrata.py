@@ -78,6 +78,10 @@ class SocrataBase:
 class Dataset(SocrataBase):
     """Represents a Socrata Dataset, can be used for CRUD and more"""
     
+    # Fetch columns
+    def columns(self):
+        return self._request("/views/%s/columns.json" % self.id, 'GET')
+
     # Creates a new column, POSTing the request immediately
     def add_column(self, name, description='', type='text',
         hidden=False, rich=False, width=100):
