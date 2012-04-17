@@ -4,3 +4,5 @@ socrata.cfg
 Socrata.pyc
 
 .DS_Store
+
+Socrata_Python.egg-info/*

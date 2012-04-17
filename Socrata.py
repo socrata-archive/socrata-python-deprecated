@@ -77,7 +77,7 @@ class SocrataBase:
 
 class Dataset(SocrataBase):
     """Represents a Socrata Dataset, can be used for CRUD and more"""
-
+    
     # Creates a new column, POSTing the request immediately
     def add_column(self, name, description='', type='text',
         hidden=False, rich=False, width=100):
@@ -88,15 +88,15 @@ class Dataset(SocrataBase):
             'width': width }
         if rich:
             data['format'] = {'formatting_option': 'Rich'}
-        self.response = self._request("/views/%s/columns.json" % self.id,
+        response = self._request("/views/%s/columns.json" % self.id,
             'POST', data)
-        return self.response
+        return response
 
     # Adds a new row by specifying an array of cells
     def add_row(self, data):
         if not self.attached():
             return False
-        self.response = self._request("/views/%s/rows.json" % self.id,
+        response = self._request("/views/%s/rows.json" % self.id,
             'POST', data)
 
     # For batch row importing, returns a dict to be POST'd
