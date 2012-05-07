@@ -21,7 +21,7 @@ from urllib import urlencode
 from urlparse import urljoin
 
 id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
-
+HTTP_DEBUG=False
 
 class SocrataBase:
     """Base class for all Socrata API objects"""
@@ -51,7 +51,9 @@ class SocrataBase:
             data_json = json.dumps(data)
         else:
             data_json = None
-
+            
+        if HTTP_DEBUG:
+            logging.warning('%s: %s'%(type, uri))
         response= client(uri,
             headers = headers, 
             auth=(self.username, self.password ),
@@ -60,6 +62,8 @@ class SocrataBase:
         )
             
         content=response.text
+        if HTTP_DEBUG:
+            logging.warning(content)
         if content != None and len(content) > 0:
             response_parsed = json.loads(content)
             if hasattr(response_parsed, 'has_key') and \
@@ -111,6 +115,28 @@ class Dataset(SocrataBase):
         return {'url': "/views/%s/rows.json" % self.id,
                 'requestType': 'POST',
                 'body': json.dumps(data)}
+    
+    
+    # Retrieves all rows, or optionally just the ID's
+    def rows(self, row_ids_only=False):
+        uri='/views/%s/rows.json' % self.id
+        if row_ids_only:
+            uri+= '?row_ids_only=true'
+        
+        return self._request(uri, 'GET')['data']
+        
+    # deletes a row
+    def delete_row(self, row_id):
+        return self._request('/views/%s/rows/%s.json' % ( self.id, row_id),'DELETE' )
+
+
+    # _batch'able row deletion
+    def delete_row_delayed(self, row_id):
+        if not self.attached():
+            return False
+        return {'url': '/views/%s/rows/%s.json' % ( self.id, row_id),
+                'requestType': 'DELETE',
+                }
 
     # Is this class currently associated with an existing dataset?
     def attached(self):
@@ -174,6 +200,23 @@ class Dataset(SocrataBase):
             'filename': response['nameForOutput']}
         metadata['attachments'].append(attachment)
         self._request("/views/%s.json" % self.id, 'PUT', {'metadata':metadata})
+
+    # creates a working copy of this dataset
+    def create_working_copy(self):
+        if self.attached():
+            response=self._request("/views/%s/publication.json?method=copy" % self.id, 'POST')
+            working_copy=Dataset(self.host, self.username, self.password, self.app_token)
+            working_copy.use_existing(response['id'])
+            return working_copy
+            
+    # publish this working copy
+    def publish(self):
+        if self.attached():
+            response=self._request("/api/views/%s/publication.json" % self.id, 'POST')
+            return response
+
+            
+
 
     def multipart_post(self, url, filename, field='file'):
         file_to_upload = open(filename, "rb")
