@@ -19,9 +19,46 @@ import re, logging
 import requests
 from urllib import urlencode
 from urlparse import urljoin
+from os.path import split
+from time import sleep
 
 id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
 HTTP_DEBUG=False
+
+
+
+
+
+def column_spec(name, datatype):
+    """ convenience function for defining column blueprints in python """
+    return {'name': name, 'datatype': datatype}
+
+
+class SocrataImporter(object):
+    """ supports the Socrata upload process """
+    def __init__(self, socrata):
+        self.socrata=socrata
+        
+    def upload(self, path):
+        f=open(path)
+        filename=split(path[1])
+        
+        return self.socrata._request('/imports2?method=scan', 'POST', files={filename:f})
+
+    def import_file(self, name, fileId,blueprint=None, translation=None, skip=0,to_view=None, method='replace'):
+        postdata={'name':name, 'fileId':fileId, 'skip':skip}
+        uri='/imports2.json'
+        if to_view:
+            uri+='?method=%s' % method
+            postdata['viewUid']=to_view
+        if blueprint:
+            postdata['blueprint']=blueprint
+        if translation:
+            postdata['translation']=translation
+        response= self.socrata._request(uri, 'POST', data=postdata, encoder=None, content_type="application/x-www-form-urlencoded")
+    
+
+
 
 class SocrataBase:
     """Base class for all Socrata API objects"""
@@ -36,30 +73,36 @@ class SocrataBase:
         self.password  = password
         self.host      = host
         self.app_token = app_token
+        self.importer=SocrataImporter(self)
 
-    def _request(self, service, type='GET', data = {}, files=dict()):
+    def _request(self, service, type='GET', data = {}, files=dict(), encoder=json.dumps, content_type='application/json'):
         """Generic HTTP request, encoding data as JSON and decoding the response"""
         client= getattr(requests, type.lower())
         uri=urljoin(self.host, service)
-        headers={ 'Content-type': 'application/json',
+        headers={ 'Content-type': content_type,
               'X-App-Token': self.app_token }
         
         if len(files) > 0:
             del headers['Content-type']
         
-        if data:
-            data_json = json.dumps(data)
-        else:
-            data_json = None
+        if data and encoder:
+            data=encoder(data)
+            
+        if not data:
+            data=None
             
         if HTTP_DEBUG:
             logging.warning('%s: %s'%(type, uri))
+            
+
         response= client(uri,
             headers = headers, 
             auth=(self.username, self.password ),
-            data=data_json,
+            data=data,
             files=files
         )
+        
+
             
         content=response.text
         if HTTP_DEBUG:
@@ -69,6 +112,37 @@ class SocrataBase:
             if hasattr(response_parsed, 'has_key') and \
                 response_parsed.has_key('error') and response_parsed['error'] == True:
                 print "Error: %s" % response_parsed['message']
+                return response_parsed
+
+            while (response.status_code == 202 or response_parsed.has_key('status')):
+                if HTTP_DEBUG:
+                    logging.warning("delayed response-- trying again in 5 seonds")
+                sleep(5)
+                if response_parsed.has_key('ticket'):
+                    response=requests.get(urljoin(self.host, '/api/imports2.json?ticket=%s' % response_parsed['ticket']),  
+                    headers = headers, 
+                    auth=(self.username, self.password )
+                    )
+                    response_parsed = json.loads(response.text)
+                else:
+                    response= client(uri,
+                        headers = headers, 
+                        auth=(self.username, self.password ),
+                        data=data,
+                        files=files
+                    )
+                    
+                    if HTTP_DEBUG:
+                        logging.warning(response.text)
+                    
+                    response_parsed = json.loads(response.text)
+                            
+                        
+
+                    
+                
+                
+                
             return response_parsed
         
         
@@ -89,6 +163,21 @@ class Dataset(SocrataBase):
     # Creates a new column, POSTing the request immediately
     def add_column(self, name, description='', type='text',
         hidden=False, rich=False, width=100):
+        if not self.attached():
+            return False
+        data = { 'name': name, 'dataTypeName': type,
+            'description': description, 'hidden': hidden,
+            'width': width }
+        if rich:
+            data['format'] = {'formatting_option': 'Rich'}
+        response = self._request("/views/%s/columns.json" % self.id,
+            'POST', data)
+        return response
+        
+        
+        
+    # Creates a new column, POSTing the request immediately
+    def delete_column(self, column_id):
         if not self.attached():
             return False
         data = { 'name': name, 'dataTypeName': type,
@@ -222,6 +311,12 @@ class Dataset(SocrataBase):
         file_to_upload = open(filename, "rb")
         response = self._request(url, type='POST', files={filename:file_to_upload })
         return response
+        
+    def append(self, fileId, name, skip=0, blueprint=None, translation=None):
+        return self.importer.import_file(name=name, fileId=fileId, to_view=self.id, method='append', skip=skip,blueprint=blueprint, translation=translation)
+        
+    def replace(self, fileId, name, skip=0, blueprint=None, translation=None):
+        return self.importer.import_file(name=name, fileId=fileId, to_view=self.id, method='replace', skip=skip,blueprint=blueprint, translation=translation)
 
 
     # Is the string 'id' a valid four-four ID?
