@@ -15,12 +15,15 @@ limitations under the License.
 """
 
 import json
-import re, logging
+import re, logging, ConfigParser
 import requests
 from urllib import urlencode
 from urlparse import urljoin
-from os.path import split
+from os.path import split, expanduser
 from time import sleep
+
+
+
 
 id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
 HTTP_DEBUG=False
@@ -63,16 +66,35 @@ class SocrataImporter(object):
 class SocrataBase:
     """Base class for all Socrata API objects"""
 
-    def __init__(self, host, username, password, app_token):
+    def __init__(self, host=None, username=None, password=None, app_token=None):
         """
         Initializes a new Socrata API object with configuration
         options specified in standard ConfigParser format
         """
 
+        
+        
         self.username  = username
         self.password  = password
         self.host      = host
         self.app_token = app_token
+        
+        cfg = ConfigParser.ConfigParser()
+        cfg.read(['socrata.cfg', expanduser('~/.socrata.cfg')])
+        
+        if not self.username:
+            self.username = cfg.get('credentials', 'user')
+            
+        if not self.password:
+            self.password= cfg.get('credentials', 'password')
+            
+        if not self.host:
+            self.host= cfg.get('server', 'host')
+            
+        if not self.app_token:
+            self.app_token= cfg.get('credentials', 'app_token')
+        
+        
         self.importer=SocrataImporter(self)
 
     def _request(self, service, type='GET', data = {}, files=dict(), encoder=json.dumps, content_type='application/json'):
@@ -114,7 +136,7 @@ class SocrataBase:
                 print "Error: %s" % response_parsed['message']
                 return response_parsed
 
-            while (response.status_code == 202 or response_parsed.has_key('status')):
+            while (response.status_code == 202 or (hasattr(response_parsed, 'has_key') and response_parsed.has_key('status'))):
                 if HTTP_DEBUG:
                     logging.warning("delayed response-- trying again in 5 seonds")
                 sleep(5)
@@ -132,8 +154,8 @@ class SocrataBase:
                         files=files
                     )
                     
-                    if HTTP_DEBUG:
-                        logging.warning(response.text)
+                if HTTP_DEBUG:
+                    logging.warning(response.text)
                     
                     response_parsed = json.loads(response.text)
                             
