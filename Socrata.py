@@ -22,15 +22,8 @@ from urlparse import urljoin
 from os.path import split, expanduser
 from time import sleep
 
-
-
-
 id_pattern = re.compile('^[0-9a-z]{4}-[0-9a-z]{4}$')
 HTTP_DEBUG=False
-
-
-
-
 
 def column_spec(name, datatype):
     """ convenience function for defining column blueprints in python """
@@ -41,11 +34,11 @@ class SocrataImporter(object):
     """ supports the Socrata upload process """
     def __init__(self, socrata):
         self.socrata=socrata
-        
+
     def upload(self, path):
         f=open(path)
         filename=split(path[1])
-        
+
         return self.socrata._request('/imports2?method=scan', 'POST', files={filename:f})
 
     def import_file(self, name, fileId,blueprint=None, translation=None, skip=0,to_view=None, method='replace'):
@@ -59,9 +52,6 @@ class SocrataImporter(object):
         if translation:
             postdata['translation']=translation
         response= self.socrata._request(uri, 'POST', data=postdata, encoder=None, content_type="application/x-www-form-urlencoded")
-    
-
-
 
 class SocrataBase:
     """Base class for all Socrata API objects"""
@@ -72,60 +62,55 @@ class SocrataBase:
         options specified in standard ConfigParser format
         """
 
-        
-        
         self.username  = username
         self.password  = password
         self.host      = host
         self.app_token = app_token
-        
+
         cfg = ConfigParser.ConfigParser()
         cfg.read(['socrata.cfg', expanduser('~/.socrata.cfg')])
-        
+
         if not self.username:
             self.username = cfg.get('credentials', 'user')
-            
+
         if not self.password:
             self.password= cfg.get('credentials', 'password')
-            
+
         if not self.host:
             self.host= cfg.get('server', 'host')
-            
+
         if not self.app_token:
             self.app_token= cfg.get('credentials', 'app_token')
-        
-        
+
+
         self.importer=SocrataImporter(self)
 
     def _request(self, service, type='GET', data = {}, files=dict(), encoder=json.dumps, content_type='application/json'):
         """Generic HTTP request, encoding data as JSON and decoding the response"""
-        client= getattr(requests, type.lower())
-        uri=urljoin(self.host, service)
-        headers={ 'Content-type': content_type,
+
+        client = getattr(requests, type.lower())
+        uri = urljoin(self.host, service)
+        headers = { 'Content-type': content_type,
               'X-App-Token': self.app_token }
-        
+
         if len(files) > 0:
             del headers['Content-type']
-        
+
         if data and encoder:
             data=encoder(data)
-            
+
         if not data:
             data=None
-            
+
         if HTTP_DEBUG:
             logging.warning('%s: %s'%(type, uri))
-            
 
-        response= client(uri,
-            headers = headers, 
-            auth=(self.username, self.password ),
-            data=data,
-            files=files
-        )
-        
+        response = client(uri,
+            headers = headers,
+            auth = (self.username, self.password),
+            data = data,
+            files = files)
 
-            
         content=response.text
         if HTTP_DEBUG:
             logging.warning(content)
@@ -141,43 +126,31 @@ class SocrataBase:
                     logging.warning("delayed response-- trying again in 5 seonds")
                 sleep(5)
                 if response_parsed.has_key('ticket'):
-                    response=requests.get(urljoin(self.host, '/api/imports2.json?ticket=%s' % response_parsed['ticket']),  
-                    headers = headers, 
-                    auth=(self.username, self.password )
-                    )
+                    response = requests.get(urljoin(self.host, '/api/imports2.json?ticket=%s' % response_parsed['ticket']),
+                        headers = headers,
+                        auth = (self.username, self.password))
                     response_parsed = json.loads(response.text)
                 else:
-                    response= client(uri,
-                        headers = headers, 
-                        auth=(self.username, self.password ),
-                        data=data,
-                        files=files
-                    )
-                    
+                    response = client(uri,
+                        headers = headers,
+                        auth = (self.username, self.password),
+                        data = data,
+                        files = files)
+
                 if HTTP_DEBUG:
                     logging.warning(response.text)
-                    
-                    response_parsed = json.loads(response.text)
-                            
-                        
 
-                    
-                
-                
-                
+                response_parsed = json.loads(response.text)
             return response_parsed
-        
-        
         return None
 
     def _batch(self, data):
         payload = {'requests': data}
         return self._request('/batches', 'POST', payload)
 
-
 class Dataset(SocrataBase):
     """Represents a Socrata Dataset, can be used for CRUD and more"""
-    
+
     # Fetch columns
     def columns(self):
         return self._request("/views/%s/columns.json" % self.id, 'GET')
@@ -195,9 +168,7 @@ class Dataset(SocrataBase):
         response = self._request("/views/%s/columns.json" % self.id,
             'POST', data)
         return response
-        
-        
-        
+
     # Creates a new column, POSTing the request immediately
     def delete_column(self, column_id):
         if not self.attached():
@@ -226,28 +197,25 @@ class Dataset(SocrataBase):
         return {'url': "/views/%s/rows.json" % self.id,
                 'requestType': 'POST',
                 'body': json.dumps(data)}
-    
-    
+
     # Retrieves all rows, or optionally just the ID's
     def rows(self, row_ids_only=False):
         uri='/views/%s/rows.json' % self.id
         if row_ids_only:
             uri+= '?row_ids_only=true'
-        
+
         return self._request(uri, 'GET')['data']
-        
+
     # deletes a row
     def delete_row(self, row_id):
-        return self._request('/views/%s/rows/%s.json' % ( self.id, row_id),'DELETE' )
-
+        return self._request('/views/%s/rows/%s.json' % (self.id, row_id),'DELETE' )
 
     # _batch'able row deletion
     def delete_row_delayed(self, row_id):
         if not self.attached():
             return False
-        return {'url': '/views/%s/rows/%s.json' % ( self.id, row_id),
-                'requestType': 'DELETE',
-                }
+        return {'url': '/views/%s/rows/%s.json' % (self.id, row_id),
+                'requestType': 'DELETE'}
 
     # Is this class currently associated with an existing dataset?
     def attached(self):
@@ -261,7 +229,7 @@ class Dataset(SocrataBase):
             data['flags'] = ['dataPublicRead']
         if tags.count > 0:
             data['tags'] = tags
-        
+
         response = self._request('/views.json', 'POST', data)
         if response.has_key('error'):
             self.error = response['message']
@@ -288,7 +256,7 @@ class Dataset(SocrataBase):
         return sets
 
     def metadata(self):
-        self.error = False 
+        self.error = False
         return (self._request("/views/%s.json" % self.id, 'GET'))
 
     def attachments(self):
@@ -319,27 +287,23 @@ class Dataset(SocrataBase):
             working_copy=Dataset(self.host, self.username, self.password, self.app_token)
             working_copy.use_existing(response['id'])
             return working_copy
-            
+
     # publish this working copy
     def publish(self):
         if self.attached():
             response=self._request("/api/views/%s/publication.json" % self.id, 'POST')
             return response
 
-            
-
-
     def multipart_post(self, url, filename, field='file'):
         file_to_upload = open(filename, "rb")
         response = self._request(url, type='POST', files={filename:file_to_upload })
         return response
-        
+
     def append(self, fileId, name, skip=0, blueprint=None, translation=None):
         return self.importer.import_file(name=name, fileId=fileId, to_view=self.id, method='append', skip=skip,blueprint=blueprint, translation=translation)
-        
+
     def replace(self, fileId, name, skip=0, blueprint=None, translation=None):
         return self.importer.import_file(name=name, fileId=fileId, to_view=self.id, method='replace', skip=skip,blueprint=blueprint, translation=translation)
-
 
     # Is the string 'id' a valid four-four ID?
     def is_id(self, id):
@@ -353,7 +317,6 @@ class Dataset(SocrataBase):
 
     def short_url(self):
         return urljoin(self.host, "/d/" + str(self.id))
-
 
 class DuplicateDatasetError(Exception):
     """Raised if a dataset with the specified name already exists"""
