@@ -10,7 +10,7 @@ If you're curious about how things work under the hood, you can also browse the 
 [api documentation]: http://opendata.socrata.com/api/docs/
 
 
-Installtion
+Installation
 ===========
 
 Using PIP
@@ -18,7 +18,7 @@ Using PIP
 
 You can use [PIP][] to install from [git][]:
 
-    $pip install git+https://github.com/socrata/socrata-python.git
+    pip install git+https://github.com/socrata/socrata-python.git
 
 [pip]: http://www.pip-installer.org/en/latest/index.html
 [git]: http://www.pip-installer.org/en/latest/usage.html#version-control-systems
